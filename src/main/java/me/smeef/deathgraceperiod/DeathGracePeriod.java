@@ -2,18 +2,14 @@ package me.smeef.deathgraceperiod;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.Color;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
 
 import java.util.HashMap;
 
@@ -96,7 +92,7 @@ public final class DeathGracePeriod extends JavaPlugin implements Listener {
      * a configurable amount of time (measured in ticks) passes, therefore signifying they are
      * no longer invulnerable.
      *
-     * @param event
+     * @param event Event where a player respawns
      */
     @EventHandler
     public void onPlayerRespawnEvent(final PlayerRespawnEvent event) {
@@ -107,12 +103,9 @@ public final class DeathGracePeriod extends JavaPlugin implements Listener {
 
         playersOnGracePeriod.put(playerUUID, timeAtRespawn);
 
-        Bukkit.getScheduler().runTaskLater(this, new Runnable() {
-            @Override
-            public void run() {
-                playersOnGracePeriod.remove(playerUUID);
-                p.sendMessage(prefix + "You are no longer on grace period!");
-            }
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            playersOnGracePeriod.remove(playerUUID);
+            p.sendMessage(prefix + "You are no longer on grace period!");
         }, invincibleTime);
     }
 }
