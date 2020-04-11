@@ -1,0 +1,6 @@
+name: DeathGracePeriod
+version: ${project.version}
+main: me.smeef.deathgraceperiod.DeathGracePeriod
+api-version: 1.13
+authors: [smeef]
+description: Creates a Grace Period for a player after dying. Configurable Grace Period timer and supports permissions. Built for 1.12.2
