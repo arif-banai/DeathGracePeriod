@@ -1,5 +1,6 @@
 package me.smeef.deathgraceperiod;
 
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Color;
 import org.bukkit.entity.Entity;
@@ -14,19 +15,27 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
+import java.util.HashMap;
+
 public final class DeathGracePeriod extends JavaPlugin implements Listener {
 
-    private int invincibleTime;
+    //This is in units of Ticks. 1 second = 20 ticks
+    private long invincibleTime;
 
-    private final String prefix = "[ + " + ChatColor.RED + "DeathGrace" + ChatColor.RESET + "]";
+    private final String prefix = "[" + ChatColor.RED + "DeathGrace" + ChatColor.RESET + "] ";
+
+    private HashMap<String, Long> playersOnGracePeriod;
 
     @Override
     public void onEnable() {
         this.saveDefaultConfig();
 
         //Time is in ticks, so multiply by 20 to convert from seconds to ticks
-        this.invincibleTime = getConfig().getInt("invincibility-duration", 60) * 20;
+        this.invincibleTime = getConfig().getLong("invincibility-duration", 60L) * 20L;
+
+        playersOnGracePeriod = new HashMap<String, Long>();
         getServer().getPluginManager().registerEvents(this, this);
+
     }
 
     @Override
@@ -48,43 +57,62 @@ public final class DeathGracePeriod extends JavaPlugin implements Listener {
 
         if(e instanceof Player) {
             Player p = (Player) e;
-            PotionEffect effectOnPlayer = p.getPotionEffect(PotionEffectType.HEALTH_BOOST);
-            if (effectOnPlayer != null) {
-                int activeEffectAmplifier = effectOnPlayer.getAmplifier();
-                if(activeEffectAmplifier >= 200) {
-                    event.setCancelled(true);
+            String playerUUID = p.getUniqueId().toString();
 
-                    p.sendMessage(prefix + "You are protected from damage for "
-                            + ChatColor.GREEN + effectOnPlayer.getDuration()
-                            + ChatColor.RESET + "seconds!");
+            if (playersOnGracePeriod.containsKey(playerUUID)) {
+                event.setCancelled(true);
+                this.getLogger().info("Player is on grace period");
 
-                    if(event instanceof EntityDamageByEntityEvent) {
-                        EntityDamageByEntityEvent damageByEntityEvent = (EntityDamageByEntityEvent) event;
+                long timeAtRespawn = playersOnGracePeriod.get(playerUUID);
 
-                        Entity enemy = damageByEntityEvent.getDamager();
+                //invincibleTime is converted from ticks to milliseconds, as (1/20) * 1000 = 50
+                long timeLeft = (invincibleTime *  50) - (System.currentTimeMillis() - timeAtRespawn);
 
-                        if(enemy instanceof Player) {
-                            Player damager = (Player) enemy;
-                            damager.sendMessage(prefix + "This player can't take damage yet!");
-                        }
+                //invincible time is converted to seconds to tell the player how much longer they are invulnerable
+                p.sendMessage(prefix + "You are protected from damage for "
+                        + ChatColor.GREEN + (timeLeft / 1000)
+                        + ChatColor.RESET + " seconds!");
+
+                if(event instanceof EntityDamageByEntityEvent) {
+                    EntityDamageByEntityEvent damageByEntityEvent = (EntityDamageByEntityEvent) event;
+
+                    Entity enemy = damageByEntityEvent.getDamager();
+
+                    if(enemy instanceof Player) {
+                        Player damager = (Player) enemy;
+                        damager.sendMessage(prefix + "This player can't take damage yet!");
                     }
                 }
+
+            } else {
+                this.getLogger().info("Player is NOT on grace period");
             }
         }
     }
 
+    /**
+     * Adds the respawned player to the gracePeriod HashMap to signify this player
+     * is invulnerable. A task is scheduled to remove the player from the HashMap after
+     * a configurable amount of time (measured in ticks) passes, therefore signifying they are
+     * no longer invulnerable.
+     *
+     * @param event
+     */
     @EventHandler
     public void onPlayerRespawnEvent(final PlayerRespawnEvent event) {
         Player p = event.getPlayer();
+        String playerUUID = p.getUniqueId().toString();
 
-        PotionEffect invincible = new PotionEffect(PotionEffectType.HEALTH_BOOST,
-                invincibleTime,
-                200,
-                true,
-                true,
-                true);
+        long timeAtRespawn = System.currentTimeMillis();
 
-        p.addPotionEffect(invincible);
-        p.sendMessage(prefix + "You are now invincible for " + ChatColor.GREEN + invincibleTime + ChatColor.RESET + " seconds!");
+        playersOnGracePeriod.put(playerUUID, timeAtRespawn);
+
+        Bukkit.getScheduler().runTaskLater(this, new Runnable() {
+            @Override
+            public void run() {
+                playersOnGracePeriod.remove(playerUUID);
+                p.sendMessage(prefix + "You are no longer on grace period!");
+            }
+        }, invincibleTime);
     }
 }
