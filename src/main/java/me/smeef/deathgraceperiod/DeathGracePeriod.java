@@ -5,6 +5,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
@@ -18,6 +19,7 @@ public final class DeathGracePeriod extends JavaPlugin implements Listener {
     //This is in units of Ticks. 1 second = 20 ticks
     private long invincibleTime;
 
+    //Prefix to use in chat messages, usually to a player.
     private final String prefix = "[" + ChatColor.RED + "DeathGrace" + ChatColor.RESET + "] ";
 
     private HashMap<String, Long> playersOnGracePeriod;
@@ -36,6 +38,8 @@ public final class DeathGracePeriod extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
+        //Unregister EventHandlers from this plugin
+        HandlerList.unregisterAll((JavaPlugin) this);
     }
 
     /** This handles the event where an entity, who is a player,
@@ -102,6 +106,7 @@ public final class DeathGracePeriod extends JavaPlugin implements Listener {
         long timeAtRespawn = System.currentTimeMillis();
 
         playersOnGracePeriod.put(playerUUID, timeAtRespawn);
+        p.sendMessage(prefix + "You are now invulnerable for " + ChatColor.GREEN + (invincibleTime / 20) + ChatColor.RESET + " seconds!");
 
         Bukkit.getScheduler().runTaskLater(this, () -> {
             playersOnGracePeriod.remove(playerUUID);
