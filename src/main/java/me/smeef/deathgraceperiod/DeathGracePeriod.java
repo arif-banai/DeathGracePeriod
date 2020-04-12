@@ -16,13 +16,26 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
 
+/**
+ * This Spigot plugin implements a grace period for players after they respawn.
+ * Once active, a player in grace may not take damage.
+ * The grace period goes away after a configurable amount of time, or if the
+ * player attempts to attack, place or break blocks or interact with inventory-containing blocks/entities.
+ *
+ * @author  Arif Banai
+ * @version beta 5
+ * @since   2020-04-11
+ *
+ */
 public final class DeathGracePeriod extends JavaPlugin implements Listener {
 
     //This is in units of Ticks. 1 second = 20 ticks
@@ -31,6 +44,7 @@ public final class DeathGracePeriod extends JavaPlugin implements Listener {
     //Prefix to use in chat messages, usually to a player.
     private final String prefix = "[" + ChatColor.RED + "DeathGrace" + ChatColor.RESET + "] ";
 
+    //TODO Maybe use one HashMap<String, Entry<Long, Integer>>
     private HashMap<String, Long> playersOnGracePeriod;
     private HashMap<String, Integer> playerGraceEndingTask;
 
@@ -58,7 +72,7 @@ public final class DeathGracePeriod extends JavaPlugin implements Listener {
      * @param event The event where a Block is place by a Player
      */
     @EventHandler
-    public void onBlockPlaceEvent(final BlockPlaceEvent event) {
+    public void onBlockPlaceEvent(final @NotNull BlockPlaceEvent event) {
         Player p = event.getPlayer();
         String playerUUID = p.getUniqueId().toString();
 
@@ -74,7 +88,7 @@ public final class DeathGracePeriod extends JavaPlugin implements Listener {
      * @param event The event where a Block is broken by a Player
      */
     @EventHandler
-    public void onBlockBreakEvent(final BlockBreakEvent event) {
+    public void onBlockBreakEvent(final @NotNull BlockBreakEvent event) {
         Player p = event.getPlayer();
         String playerUUID = p.getUniqueId().toString();
 
@@ -92,7 +106,7 @@ public final class DeathGracePeriod extends JavaPlugin implements Listener {
      * @param event The event where a Player interacts with something
      */
     @EventHandler
-    public void onPlayerInteractEvent(final PlayerInteractEvent event) {
+    public void onPlayerInteractEvent(final @NotNull PlayerInteractEvent event) {
         Player p = event.getPlayer();
         String playerUUID = p.getUniqueId().toString();
 
@@ -118,6 +132,33 @@ public final class DeathGracePeriod extends JavaPlugin implements Listener {
         }
     }
 
+    /**
+     * TODO javadoc for PlayerInteractEntity
+     *
+     * @param event The event where a Player interacts with an Entity
+     */
+    @EventHandler
+    public void onPlayerInteractEntityEvent(final @NotNull PlayerInteractEntityEvent event) {
+        Player p = event.getPlayer();
+        String playerUUID = p.getUniqueId().toString();
+
+        if(playerHasGracePeriod(playerUUID)) {
+            Entity targetEntity = event.getRightClicked();
+
+            /*
+            TODO Check to make sure all the cases where the grace period
+                 should end are handled. Any Entity with an inventory or
+                 some degree of interactibility (beyond movement) should
+                 break the grace period.
+             */
+
+            if(targetEntity instanceof InventoryHolder) {
+                cancelGraceEndingTask(playerUUID);
+                p.sendMessage(prefix + "You are no longer invulnerable because you interacted with an entity!");
+            }
+        }
+    }
+
     /** This handles the event where an entity is damaged. If the entity is a player, and is on the grace period,
      * the event is canceled (damage is not received), and the victim and attacker (if applicable) are messaged.
      *
@@ -126,7 +167,7 @@ public final class DeathGracePeriod extends JavaPlugin implements Listener {
      * @param event The event where an Entity receives damage
      */
     @EventHandler
-    public void onPlayerDamageEvent(final EntityDamageEvent event) {
+    public void onPlayerDamageEvent(final @NotNull EntityDamageEvent event) {
         Entity e = event.getEntity();
 
         if(e instanceof Player) {
@@ -140,33 +181,33 @@ public final class DeathGracePeriod extends JavaPlugin implements Listener {
                 long timeAtRespawn = playersOnGracePeriod.get(playerUUID);
 
                 //invincibleTime is converted from ticks to milliseconds, as (1/20) * 1000 = 50
-                long timeLeft = (invincibleTime *  50) - (System.currentTimeMillis() - timeAtRespawn);
+                long timeLeft = (invincibleTime * 50) - (System.currentTimeMillis() - timeAtRespawn);
 
                 //invincibleTime is converted to seconds to tell the player how much longer they are invulnerable
                 p.sendMessage(prefix + "You are protected from damage for "
                         + ChatColor.GREEN + (timeLeft / 1000)
                         + ChatColor.RESET + " seconds!");
             }
+        }
 
-            if(event instanceof EntityDamageByEntityEvent) {
-                EntityDamageByEntityEvent damageByEntityEvent = (EntityDamageByEntityEvent) event;
-                Entity enemy = damageByEntityEvent.getDamager();
+        if(event instanceof EntityDamageByEntityEvent) {
+            EntityDamageByEntityEvent damageByEntityEvent = (EntityDamageByEntityEvent) event;
+            Entity enemy = damageByEntityEvent.getDamager();
 
-                if(enemy instanceof Player) {
-                    Player damager = (Player) enemy;
-                    String damagerUUID = damager.getUniqueId().toString();
+            if(enemy instanceof Player) {
+                Player damager = (Player) enemy;
+                String damagerUUID = damager.getUniqueId().toString();
 
-                    if(event.isCancelled()) {
-                        damager.sendMessage(prefix + "This player can't take damage yet!");
-                    }
+                if(event.isCancelled()) {
+                    damager.sendMessage(prefix + "This player can't take damage yet!");
+                }
 
-                    if(playerHasGracePeriod(damagerUUID)) {
-                        event.setCancelled(true);
-                        this.getLogger().info("Attacker was on grace period");
+                if(playerHasGracePeriod(damagerUUID)) {
+                    event.setCancelled(true);
+                    this.getLogger().info("Attacker was on grace period");
 
-                        cancelGraceEndingTask(damagerUUID);
-                        damager.sendMessage(prefix + "You are no longer invulnerable because you attacked a player!");
-                    }
+                    cancelGraceEndingTask(damagerUUID);
+                    damager.sendMessage(prefix + "You are no longer invulnerable because you are attacking!");
                 }
             }
         }
@@ -181,7 +222,7 @@ public final class DeathGracePeriod extends JavaPlugin implements Listener {
      * @param event Event where a player respawns
      */
     @EventHandler
-    public void onPlayerRespawnEvent(final PlayerRespawnEvent event) {
+    public void onPlayerRespawnEvent(final @NotNull PlayerRespawnEvent event) {
         Player p = event.getPlayer();
         String playerUUID = p.getUniqueId().toString();
 
@@ -211,6 +252,7 @@ public final class DeathGracePeriod extends JavaPlugin implements Listener {
     }
 
     /**
+     * Checks if a player has an active grace period.
      *
      * @param UUID String representation of a Player's UUID
      * @return true if player has a grace period, false otherwise
