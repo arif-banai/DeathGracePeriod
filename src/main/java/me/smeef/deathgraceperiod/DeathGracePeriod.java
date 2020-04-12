@@ -122,7 +122,8 @@ public final class DeathGracePeriod extends JavaPlugin implements Listener {
                     if(blockState instanceof InventoryHolder ||
                             material == Material.ANVIL ||
                             material == Material.CHIPPED_ANVIL ||
-                            material == Material.DAMAGED_ANVIL) {
+                            material == Material.DAMAGED_ANVIL ||
+                            material == Material.ENDER_CHEST) {
 
                         cancelGraceEndingTask(playerUUID);
                         p.sendMessage(prefix + "You are no longer invulnerable because you interacted with a block!");
@@ -133,7 +134,9 @@ public final class DeathGracePeriod extends JavaPlugin implements Listener {
     }
 
     /**
-     * TODO javadoc for PlayerInteractEntity
+     * If a player is in a grace period, and interacts (right-clicks) with an Entity that
+     * has an inventory, or otherwise is not allowed to be interacted with during
+     * a grace period, that player's grace period is disabled.
      *
      * @param event The event where a Player interacts with an Entity
      */
